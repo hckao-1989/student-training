@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>學生年級背誦訓練系統</title>
+    <style>
+        :root { --primary: #4a90e2; --success: #2ecc71; --error: #e74c3c; --bg: #f5f7fa; }
+        body { font-family: sans-serif; background: var(--bg); display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 500px; text-align: center; }
+        h1 { color: #333; margin-bottom: 20px; }
+        
+        /* 測驗區 */
+        #studentDisplay { font-size: 2.5em; font-weight: bold; margin: 30px 0; min-height: 60px; color: var(--primary); }
+        .options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        button { padding: 12px; font-size: 1em; cursor: pointer; border-radius: 8px; border: 1px solid #ddd; transition: 0.2s; }
+        .btn-grade:hover { background: #eee; }
+        .btn-grade.selected { background: var(--primary); color: white; border-color: var(--primary); }
+        .btn-main { background: var(--primary); color: white; border: none; width: 100%; font-size: 1.2em; margin-top: 10px; }
+        
+        /* 回饋區 */
+        #feedback { margin-top: 20px; font-weight: bold; min-height: 24px; }
+        .correct { color: var(--success); }
+        .wrong { color: var(--error); }
+
+        /* 後台區 */
+        .admin-section { margin-top: 50px; width: 100%; max-width: 800px; border-top: 2px dashed #ccc; padding-top: 20px; }
+        textarea { width: 100%; height: 150px; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-family: monospace; }
+        .admin-hint { font-size: 0.85em; color: #666; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>👨‍🏫 學生年級背誦挑戰</h1>
+    <div id="studentDisplay">點擊開始</div>
+    
+    <div class="options" id="optionGroup">
+        </div>
+
+    <button class="btn-main" onclick="handleMainBtn()" id="mainBtn">開始抽測</button>
+    <div id="feedback"></div>
+</div>
+
+<div class="admin-section">
+    <h2>⚙️ 後台管理區</h2>
+    <p class="admin-hint">從 Excel 複製兩欄（左邊姓名、右邊年級）直接貼在下面，系統會自動偵測年級選項。</p>
+    <textarea id="dataInput" placeholder="範例：&#10;王小明	一年級&#10;李小華	二年級"></textarea>
+    <button onclick="importData()" style="margin-top:10px;">更新資料庫</button>
+    <p id="dataCount" style="font-size: 0.8em; color: #888;"></p>
+</div>
+
+<script>
+    let studentData = [];
+    let grades = [];
+    let currentStudent = null;
+    let selectedGrade = null;
+
+    // 初始化：從本地讀取資料
+    window.onload = () => {
+        const savedData = localStorage.getItem('teacher_training_data');
+        if (savedData) {
+            document.getElementById('dataInput').value = savedData;
+            importData();
+        }
+    };
+
+    function importData() {
+        const rawText = document.getElementById('dataInput').value.trim();
+        if (!rawText) return alert("請先輸入資料");
+
+        const lines = rawText.split('\n');
+        studentData = [];
+        const gradeSet = new Set();
+
+        lines.forEach(line => {
+            const parts = line.split('\t'); // 處理 Excel 的 Tab 鍵
+            if (parts.length >= 2) {
+                const name = parts[0].trim();
+                const grade = parts[1].trim();
+                studentData.push({ name, grade });
+                gradeSet.add(grade);
+            }
+        });
+
+        grades = Array.from(gradeSet).sort();
+        localStorage.setItem('teacher_training_data', rawText);
+        renderOptions();
+        document.getElementById('dataCount').innerText = `目前共有 ${studentData.length} 位學生，${grades.length} 個年級選項。`;
+        alert("資料庫更新成功！");
+    }
+
+    function renderOptions() {
+        const group = document.getElementById('optionGroup');
+        group.innerHTML = '';
+        grades.forEach(grade => {
+            const btn = document.createElement('button');
+            btn.className = 'btn-grade';
+            btn.innerText = grade;
+            btn.onclick = () => selectGrade(grade, btn);
+            group.appendChild(btn);
+        });
+    }
+
+    function selectGrade(grade, btn) {
+        selectedGrade = grade;
+        document.querySelectorAll('.btn-grade').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+    }
+
+    function handleMainBtn() {
+        const btn = document.getElementById('mainBtn');
+        const feedback = document.getElementById('feedback');
+
+        if (btn.innerText === "開始抽測" || btn.innerText === "下一題") {
+            if (studentData.length === 0) return alert("請先在後台貼入資料");
+            
+            // 隨機抽選
+            currentStudent = studentData[Math.floor(Math.random() * studentData.length)];
+            document.getElementById('studentDisplay').innerText = currentStudent.name;
+            document.getElementById('studentDisplay').style.color = "var(--primary)";
+            feedback.innerText = "";
+            selectedGrade = null;
+            document.querySelectorAll('.btn-grade').forEach(b => b.classList.remove('selected'));
+            btn.innerText = "確認答案";
+        } 
+        else if (btn.innerText === "確認答案") {
+            if (!selectedGrade) return alert("請選擇一個年級！");
+
+            if (selectedGrade === currentStudent.grade) {
+                feedback.innerHTML = `<span class="correct">正確！${currentStudent.name} 是 ${currentStudent.grade}</span>`;
+            } else {
+                feedback.innerHTML = `<span class="wrong">錯誤！正確答案是：${currentStudent.grade}</span>`;
+                document.getElementById('studentDisplay').style.color = "var(--error)";
+            }
+            btn.innerText = "下一題";
+        }
+    }
+</script>
+
+</body>
+</html>
